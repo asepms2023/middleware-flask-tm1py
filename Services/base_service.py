@@ -30,13 +30,16 @@ vCONTROL_PANEL_CUBE       = "00-ControlPanelAPI"
 vCONTROL_PANEL_ITEM_DIM   = "ControlPanelAPIItem"
 vCONTROL_PANEL_MEASURE_DIM = "MeasureControlPanel"
 
-# Elemen path (measure String)
+# Element path
 vPATH_ELEMENTS = {
-    "SourceTM1pyLocation"       : BASE_PATH,
+    "DataFolderLocation"       : BASE_PATH,
     "SourceFileLocation"       : MASTERDATA_PATH,
     "SourceFileBackupLocation" : MOVED_MASTERDATA_PATH,
     "SourceFileLogsLocation"   : LOG_PATH,
 }
+
+# Element numeric
+# kalau kosong/0/invalid berarti "jangan pakai cache" (selalu fetch ulang ke cube)
 vCACHE_ELEMENT = "CacheDuration(Seconds)"
 
 vDefault_Path = MASTERDATA_PATH.strip()
@@ -67,7 +70,7 @@ def _to_int_safe(vValue) -> int:
 # =========================
 # FETCH CONTROL PANEL CUBE
 # =========================
-def _fetch_from_cube() -> dict:
+def _fetch_from_cube():
     vResult = {vKey: vFallback for vKey, vFallback in vPATH_ELEMENTS.items()}
     vResult[vCACHE_ELEMENT] = 0
 
@@ -80,11 +83,11 @@ def _fetch_from_cube() -> dict:
             FROM [{vCONTROL_PANEL_CUBE}]
         """)
 
+    vFound_Path_Keys = set()
+
     if vDf.empty:
         vLog.warning("Cube 00-ControlPanelAPI returned empty result, using .env fallback for all paths.")
-        return vResult
-
-    vFound_Path_Keys = set()
+        return vResult, vFound_Path_Keys
 
     for _, vRow in vDf.iterrows():
         vItem_Name = str(vRow["ControlPanelAPIItem"]).strip()
@@ -103,7 +106,7 @@ def _fetch_from_cube() -> dict:
         if vKey not in vFound_Path_Keys:
             vLog.warning(f"Element '{vKey}' value null, using .env: {vResult[vKey]}")
 
-    return vResult
+    return vResult, vFound_Path_Keys
 
 
 # =========================
@@ -124,10 +127,11 @@ def get_control_panel_data() -> dict:
             return vControl_Panel_Cache
 
         try:
-            vData = _fetch_from_cube()
-            vNew_Duration = vData.get(vCACHE_ELEMENT, 0)
+            vData, vFound_Path_Keys = _fetch_from_cube()
+            vNew_Duration    = vData.get(vCACHE_ELEMENT, 0)
+            vAll_Paths_Found = vFound_Path_Keys == set(vPATH_ELEMENTS.keys())
 
-            if vNew_Duration != 0:
+            if vNew_Duration != 0 and vAll_Paths_Found:
                 vControl_Panel_Cache = vData
                 vCache_Fetched_At    = vNow
                 vCache_Duration      = vNew_Duration
@@ -136,7 +140,14 @@ def get_control_panel_data() -> dict:
                 vControl_Panel_Cache = None
                 vCache_Fetched_At    = 0
                 vCache_Duration      = 0
-                vLog.warning("CacheDuration(Seconds) value 0. cache not activated.")
+
+                if vNew_Duration != 0 and not vAll_Paths_Found:
+                    vLog.warning(
+                        "One or more path elements missing in cube, cache skipped "
+                        "even though CacheDuration is valid."
+                    )
+                else:
+                    vLog.warning("CacheDuration(Seconds) value 0. cache not activated.")
 
             return vData
 
@@ -157,15 +168,17 @@ def get_control_panel_data() -> dict:
 # CONVENIENCE GETTERS
 # =========================
 def get_source_file_location() -> str:
+    """Folder tempat CSV ditulis pertama kali, sebelum TI dijalankan."""
     return get_control_panel_data().get("SourceFileLocation", vDefault_Path)
 
 
 def get_source_file_backup_location() -> str:
+    """Folder tujuan pemindahan file setelah TI sukses."""
     return get_control_panel_data().get("SourceFileBackupLocation", MOVED_MASTERDATA_PATH)
 
 
 def get_data_folder_location() -> str:
-    return get_control_panel_data().get("SourceTM1pyLocation", BASE_PATH)
+    return get_control_panel_data().get("DataFolderLocation", BASE_PATH)
 
 
 def get_source_file_logs_location() -> str:
