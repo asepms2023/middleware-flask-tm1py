@@ -87,9 +87,7 @@ except (FileNotFoundError, ValueError) as vError:
 
 
 # =========================
-# SIGNAL HANDLER (GRACEFUL SHUTDOWN)
-# SIGBREAK hanya tersedia di Windows - dicek dengan hasattr
-# agar tidak error saat dijalankan di Linux atau macOS.
+# SIGNAL HANDLER
 # =========================
 def handle_shutdown(signum, frame):
     vLog.info("Server shutting down...")

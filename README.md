@@ -1,155 +1,67 @@
-# Middleware Flask API for IBM Planning Analytics (TM1)
+# AI-HSO Middleware (Flask + TM1py)
 
-Middleware berbasis Flask yang menerima data JSON melalui REST API, melakukan validasi, menulis data ke file CSV, dan menjalankan TurboIntegrator (TI) Process di IBM Planning Analytics (TM1) menggunakan TM1py.
+Middleware yang terima data dari luar , generate jadi CSV, jalankan TI di TM1, lalu pindahin file CSV-nya ke folder backup.
 
-## Features
+## Cara jalanin
 
-- JWT Authentication (OAuth-like token endpoint)
-- Dynamic route registration
-- JSON schema validation
-- Automatic CSV generation
-- TM1 TurboIntegrator execution
-- Daily rotating logs with sequence number
-- Fallback configuration via `.env`
-- Error CSV generation for invalid requests
-- Modular service architecture
+1. Pastikan `.env` udah bener isinya (path, kredensial TM1, secret key, dll).
+2. Jalankan:
+   ```
+   python run.py
+   ```
+   `run.py` otomatis matiin instance lama (kalau ada), bersihin `__pycache__`, lalu start `app.py`.
+3. Cek server hidup: `http://localhost:5001/health` → harus balas `{"status":"running"}`.
 
----
+## Alur pakainya
 
-## Project Structure
+1. **Get token** dulu: `POST /auth/token` (form-urlencoded: `grant_type`, `username`, `password`, `scope`, `client_id`, `client_secret`). Token cuma satu yang aktif dalam satu waktu — generate baru = token lama otomatis invalid.
+2. **Kirim data**: `POST /sync-dealer`, `/sync-catalogue`, `/sync-polreg`, atau `/sync-workdays` (JSON, header `Authorization: Bearer <token>`).
+3. Di belakang layar: validasi payload → tulis CSV → jalankan TI di TM1 → kalau TI sukses, CSV dipindah ke folder backup dengan nama ditambah timestamp.
 
-```text
-middleware-flask-tm1py/
-│
-├── app.py
-├── run.py
+## Struktur folder penting
+
+```
+tm1py/
+├── app.py                      # entry point, endpoint /auth/token & /health
+├── run.py                      # start/restart server (cross-platform Windows & Linux)
+├── config.json                 # daftar endpoint sync + settingan server
 ├── README.md
 ├── .gitignore
-├── secret_key.py
-│
+├── secret_key.py                # generate SECRET_KEY baru
 ├── Core/
-│   ├── auth.py
-│   ├── logger.py
+│   ├── auth.py                  # generate & verifikasi token
+│   ├── router.py                # daftarin route /sync-*, validasi awal request
+│   ├── logger.py                # logging + auto rotate + auto hapus log lama
 │   ├── response.py
-│   ├── router.py
 │   └── settings.py
-│
-├── Integrations/
-│   └── tm1_connection.py
-│
 ├── Services/
-│   ├── __init__.py
-│   ├── base_service.py
-│   ├── masterdata_catalogue.py
-│   ├── masterdata_dealer.py
-│   ├── masterdata_polreg.py
-│   └── workdays.py
-│
+│   ├── base_service.py          # facade — cuma re-export, gak ada logic sendiri
+│   ├── control_panel.py         # baca cube Control Panel di TM1 (path, cache duration)
+│   ├── file_naming.py           # nama file CSV dinamis based on attribute SyncCode
+│   ├── ti_runner.py             # jalanin TI process
+│   ├── file_ops.py              # tulis CSV, pindahin file, build error row
+│   └── master_data/
+│       ├── masterdata_dealer.py
+│       ├── masterdata_catalogue.py
+│       ├── masterdata_polreg.py
+│       └── workdays.py
 ├── Validation/
-│   ├── validation_rules.py
-│   └── validator.py
-│
+│   ├── validator.py             # validasi isi JSON, termasuk lokasi error (line/col)
+│   └── validation_rules.py      # skema tiap SyncCode
 ├── Utils/
 │   └── normalizer.py
-│
-└── CSV/
-    ├── MasterData_Catalogue.csv
-    ├── MasterData_Dealer.csv
-    ├── MasterData_Polreg.csv
-    └── Workdays.csv
+└── Integrations/
+    └── tm1_connection.py
+```
 
+## Hal-hal penting yang perlu diinget
 
-#Architecture Flow
-Client System
-    ↓
-POST JSON Request
-    ↓
-JWT Authentication
-    ↓
-Content-Type Validation
-    ↓
-JSON Parsing
-    ↓
-Business Validation
-    ↓
-Normalization
-    ↓
-CSV Generation
-    ↓
-Run TM1 TurboIntegrator Process
-    ↓
-JSON Response
+- **Path folder (CSV, backup, log) dan nama file CSV itu dinamis** — diambil dari cube TM1 (`00-ControlPanelAPI` buat path, attribute `FileNamePrefix` di dimensi `SyncCode` buat nama file). Kalau di cube kosong, otomatis fallback ke default (`.env` untuk path, nama hardcode untuk file).
+- **Cache aktif cuma kalau `CacheDuration(Seconds)` di cube ≠ 0 DAN semua path ketemu di cube.** Kalau salah satu kosong, sistem selalu fetch ulang ke cube tiap request — gak pernah cache setengah-setengah.
+- **Nama TI process harus PERSIS sama** dengan yang ada di TM1 (`LoadData-Dealer`, `LoadData-01-MappingCatalogue`, `LoadData-01-MappingDealerPolreg`, `LoadData-01-Workdays`). Salah satu huruf aja beda, TI-nya gak ketemu.
+- **Kalau move file ke folder backup gagal** (misal permission error), itu cuma di-log ERROR, gak bikin proses gagal, soalnya TI nya udah sukses duluan. Tapi konsekuensinya, file lama bakal ketimpa run berikutnya kalau emang gak pernah kepindah.
+- **Cross-platform**: kill-process pas start pakai `psutil`, jalan di Windows maupun Linux tanpa perlu ubah kode.
 
-
-#Technology Stack
-Python 3.14+
-Flask
-TM1py
-PyJWT
-python-dotenv
-python-dateutil
-
-
-
-#Authentication
-#Token Endpoint
-POST /oauth/token
-Content-Type: application/x-www-form-urlencoded
-
-#Request Body
-grant_type=p
-username=
-password=
-scope=
-client_id=
-client_secret=
-
-
-#Response
-{
-  "access_token": "eyJhbGciOi...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "api"
-}
-
-
-#Logging
-
-Sistem logging memiliki fitur:
-
-Daily log file (app_YYYYMMDD.log)
-Sequence number per log entry
-Automatic log rotation
-Auto cleanup logs older than one month
-[1] 2025-07-31 09:00:00 | INFO | Route registered: /workdays
-[2] 2025-07-31 09:01:10 | INFO | [SYNC001] Start process
-[3] 2025-07-31 09:01:12 | INFO | [SYNC001] Process completed: Success
-
-#CSV Processing
-
-Setiap request yang valid akan:
-
-Dinormalisasi
-Dikonversi ke format flat
-Ditulis ke file CSV
-Menjalankan TI Process TM1
-
-Jika terjadi error, sistem tetap membuat CSV berisi:
-
-SyncCode
-Status = 0
-Message
-Date
-Time
-
-
-
-#TM1 Integration
-
-Koneksi ke TM1 menggunakan TM1py.
-with get_tm1() as tm1:
-    tm1.processes.execute_with_return("Load_MasterData_Catalogue")
 
 
 #Author
