@@ -12,14 +12,14 @@ from dotenv import load_dotenv
 # =========================
 # LOAD ENV
 # =========================
-vScript_Dir = os.path.dirname(os.path.abspath(__file__))
-vEnv_Path   = os.path.join(vScript_Dir, ".env")
-load_dotenv(vEnv_Path)
+sScript_Dir = os.path.dirname(os.path.abspath(__file__))
+sEnv_Path   = os.path.join(sScript_Dir, ".env")
+load_dotenv(sEnv_Path)
 
 # =========================
 # APP DIRECTORY (LOKASI run_py.py / app.py SENDIRI)
 # =========================
-vApp_Dir = vScript_Dir
+sApp_Dir = sScript_Dir
 
 CURRENT_PID = os.getpid()
 
@@ -28,22 +28,23 @@ CURRENT_PID = os.getpid()
 # KILL TARGET PYTHON PROCESSES
 # =========================
 def kill_target_python_processes():
-    vTarget_Norm = os.path.normcase(os.path.normpath(vApp_Dir))
+    sTarget_Norm = os.path.normcase(os.path.normpath(sApp_Dir))
 
     for vProc in psutil.process_iter(["pid", "name"]):
         try:
             if vProc.info["pid"] == CURRENT_PID:
                 continue
 
-            vName = (vProc.info.get("name") or "").lower()
-            if not vName.startswith("python"):
+            sName = (vProc.info.get("name") or "").lower()
+            if not sName.startswith("python"):
                 continue
+
             try:
-                vProc_Cwd = os.path.normcase(os.path.normpath(vProc.cwd()))
+                sProc_Cwd = os.path.normcase(os.path.normpath(vProc.cwd()))
             except (psutil.AccessDenied, psutil.NoSuchProcess, OSError):
                 continue
 
-            if vProc_Cwd == vTarget_Norm:
+            if sProc_Cwd == sTarget_Norm:
                 vProc.terminate()
                 try:
                     vProc.wait(timeout=5)
@@ -55,27 +56,26 @@ def kill_target_python_processes():
 
 
 kill_target_python_processes()
-
 time.sleep(1)
 
 
 # =========================
 # CLEAR PYCACHE
 # =========================
-sys.dont_write_bytecode = True
+sys.dont_write_bytecode = True  
 
-for vRoot, vDirs, vFiles in os.walk(vApp_Dir):
-    for vDir in vDirs:
-        if vDir == "__pycache__":
-            vCache_Path = os.path.join(vRoot, vDir)
-            shutil.rmtree(vCache_Path, ignore_errors=True)
+for sRoot, sDirs, sFiles in os.walk(sApp_Dir):
+    for sDir in sDirs:
+        if sDir == "__pycache__":
+            sCache_Path = os.path.join(sRoot, sDir)
+            shutil.rmtree(sCache_Path, ignore_errors=True)
 sys.dont_write_bytecode = False
 
 
 # =========================
 # START APP
 # =========================
-os.chdir(vApp_Dir)
+os.chdir(sApp_Dir)
 
 vProc = subprocess.Popen([
     sys.executable,

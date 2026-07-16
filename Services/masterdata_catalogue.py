@@ -9,6 +9,7 @@ from Services.base_service import (
     write_csv,
     build_error_row,
     get_source_file_location,
+    get_file_name,
     run_ti_process,
     move_processed_file,
 )
@@ -16,7 +17,7 @@ from Services.base_service import (
 # =========================
 # CONSTANTS
 # =========================
-vCSV_HEADERS = [
+sCSV_HEADERS = [
     "SyncCode",
     "MainDealerCode",
     "CutoffDate",
@@ -45,25 +46,28 @@ vLog = logging.getLogger("app")
 # =========================
 # WRITE ERROR CSV
 # =========================
-def write_error_csv(vSync, vMessage):
-    vPath = os.path.join(get_source_file_location(), "MasterData_Catalogue.csv")
-    vRows = build_error_row(vSync, vMessage, vCSV_HEADERS)
-    write_csv(vPath, vCSV_HEADERS, vRows)
+def write_error_csv(vSync, sMessage):
+    sFile_Name = get_file_name(vSync, "MasterData_Catalogue.csv")
+    sPath = os.path.join(get_source_file_location(), sFile_Name)
+    vRows = build_error_row(vSync, sMessage, sCSV_HEADERS)
+    write_csv(sPath, sCSV_HEADERS, vRows)
 
 
 # =========================
 # PROCESS DATA
 # =========================
 def process_data(vData):
-    vPath = os.path.join(get_source_file_location(), "MasterData_Catalogue.csv")
     vData = normalize("UMCM", vData)
 
-    vSync       = vData.get("SyncCode", "")
+    vSync      = vData.get("SyncCode", "")
+    sFile_Name = get_file_name(vSync, "MasterData_Catalogue.csv")
+    sPath      = os.path.join(get_source_file_location(), sFile_Name)
+
     vCutoffDate = vData.get("CutoffDate", "")
     vCutoffTime = vData.get("CutoffTime", "")
-    vNow        = datetime.now()
-    vDate       = vNow.strftime("%Y-%m-%d")
-    vTime       = vNow.strftime("%H:%M:%S")
+    sNow        = datetime.now()
+    sDate       = sNow.strftime("%Y-%m-%d")
+    sTime       = sNow.strftime("%H:%M:%S")
 
     vRows = []
 
@@ -94,12 +98,12 @@ def process_data(vData):
                 "CatalogueStatus"    : vUnit.get("CatalogueStatus", ""),
                 "Status"             : 1,
                 "Message"            : "Success",
-                "Date"               : vDate,
-                "Time"               : vTime
+                "Date"               : sDate,
+                "Time"               : sTime
             })
 
     try:
-        write_csv(vPath, vCSV_HEADERS, vRows)
+        write_csv(sPath, sCSV_HEADERS, vRows)
     except Exception as vError:
         vLog.error(f"[{vSync}] CSV error: {vError}")
         raise RuntimeError("Internal Server Error")
@@ -115,4 +119,4 @@ def process_data(vData):
     # =========================
     # MOVE FILE SETELAH TI SUKSES
     # =========================
-    move_processed_file(vPath)
+    move_processed_file(sPath)

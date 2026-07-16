@@ -17,29 +17,29 @@ from Core.router import register
 # VALIDATE ENV & PATHS
 # =========================
 def _validate_env():
-    vRequired = {
+    sRequired = {
         "BASE_PATH"    : BASE_PATH,
         "SECRET_KEY"   : SECRET_KEY,
         "AUTH_USERNAME": AUTH_USERNAME,
         "AUTH_PASSWORD": AUTH_PASSWORD,
         "CLIENT_SECRET": CLIENT_SECRET,
     }
-    vMissing = [k for k, v in vRequired.items() if not v or not v.strip()]
+    sMissing = [k for k, v in sRequired.items() if not v or not v.strip()]
 
-    if vMissing:
-        raise EnvironmentError(f"Missing required env variables: {', '.join(vMissing)}")
+    if sMissing:
+        raise EnvironmentError(f"Missing required env variables: {', '.join(sMissing)}")
 
-    vRequired_Paths = {
+    sRequired_Paths = {
         "BASE_PATH": BASE_PATH.strip(),
         "LOG_PATH" : LOG_PATH.strip(),
         "MASTERDATA_PATH" : MASTERDATA_PATH.strip(),
     }
 
-    for vKey, vPath in vRequired_Paths.items():
-        if not vPath:
-            raise EnvironmentError(f"{vKey} is not set in .env")
-        if not os.path.exists(vPath):
-            raise FileNotFoundError(f"{vKey} path does not exist: '{vPath}'")
+    for sKey, sPath in sRequired_Paths.items():
+        if not sPath:
+            raise EnvironmentError(f"{sKey} is not set in .env")
+        if not os.path.exists(sPath):
+            raise FileNotFoundError(f"{sKey} path does not exist: '{sPath}'")
 
 _validate_env()
 
@@ -55,13 +55,13 @@ app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 # LOAD CONFIG
 # =========================
 def load_config():
-    vConfig_Path = os.path.join(BASE_PATH.strip(), "config.json")
+    sConfig_Path = os.path.join(BASE_PATH.strip(), "config.json")
 
     try:
-        with open(vConfig_Path, encoding="utf-8") as vFile:
+        with open(sConfig_Path, encoding="utf-8") as vFile:
             vCfg = json.load(vFile)
     except FileNotFoundError:
-        raise FileNotFoundError(f"config.json not found at: {vConfig_Path}")
+        raise FileNotFoundError(f"config.json not found at: {sConfig_Path}")
     except json.JSONDecodeError as vError:
         raise ValueError(f"config.json is not valid JSON: {vError}")
 
@@ -89,8 +89,6 @@ except (FileNotFoundError, ValueError) as vError:
 
 # =========================
 # SIGNAL HANDLER (GRACEFUL SHUTDOWN)
-# SIGBREAK hanya tersedia di Windows — dicek dengan hasattr
-# agar tidak error saat dijalankan di Linux atau macOS.
 # =========================
 def handle_shutdown(signum, frame):
     vLog.info("Server shutting down...")

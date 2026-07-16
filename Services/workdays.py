@@ -9,6 +9,7 @@ from Services.base_service import (
     write_csv,
     build_error_row,
     get_source_file_location,
+    get_file_name,
     run_ti_process,
     move_processed_file,
 )
@@ -16,13 +17,13 @@ from Services.base_service import (
 # =========================
 # CONSTANTS
 # =========================
-vMONTH_MAPPING = {
+sMONTH_MAPPING = {
     1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
     5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
     9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
 }
 
-vCSV_HEADERS = [
+sCSV_HEADERS = [
     "SyncCode",
     "Year",
     "Month",
@@ -40,29 +41,31 @@ vLog = logging.getLogger("app")
 # =========================
 # WRITE ERROR CSV
 # =========================
-def write_error_csv(vSync, vMessage):
-    vPath = os.path.join(get_source_file_location(), "Workdays.csv")
-    vRows = build_error_row(vSync, vMessage, vCSV_HEADERS)
-    write_csv(vPath, vCSV_HEADERS, vRows)
+def write_error_csv(vSync, sMessage):
+    sFile_Name = get_file_name(vSync, "Workdays.csv")
+    sPath = os.path.join(get_source_file_location(), sFile_Name)
+    vRows = build_error_row(vSync, sMessage, sCSV_HEADERS)
+    write_csv(sPath, sCSV_HEADERS, vRows)
 
 
 # =========================
 # PROCESS DATA
 # =========================
 def process_data(vData):
-    vPath = os.path.join(get_source_file_location(), "Workdays.csv")
+    vSync      = vData.get("SyncCode", "")
+    sFile_Name = get_file_name(vSync, "Workdays.csv")
+    sPath      = os.path.join(get_source_file_location(), sFile_Name)
 
-    vSync     = vData.get("SyncCode", "")
     vWorkdays = vData.get("Workdays", [])
-    vNow      = datetime.now()
-    vDate     = vNow.strftime("%Y-%m-%d")
-    vTime     = vNow.strftime("%H:%M:%S")
+    sNow      = datetime.now()
+    sDate     = sNow.strftime("%Y-%m-%d")
+    sTime     = sNow.strftime("%H:%M:%S")
 
-    vYears  = {vWd.get("PeriodYear") for vWd in vWorkdays if vWd.get("PeriodYear") is not None}
-    vWd_Map = {
-        (vWd.get("PeriodYear"), vWd.get("PeriodMonth")): vWd.get("WorkDays")
-        for vWd in vWorkdays
-        if vWd.get("PeriodYear") is not None and vWd.get("PeriodMonth") is not None
+    vYears  = {sWd.get("PeriodYear") for sWd in vWorkdays if sWd.get("PeriodYear") is not None}
+    sWd_Map = {
+        (sWd.get("PeriodYear"), sWd.get("PeriodMonth")): sWd.get("WorkDays")
+        for sWd in vWorkdays
+        if sWd.get("PeriodYear") is not None and sWd.get("PeriodMonth") is not None
     }
 
     vRows = []
@@ -72,17 +75,17 @@ def process_data(vData):
             vRows.append({
                 "SyncCode"     : vSync,
                 "Year"         : vYear,
-                "Month"        : vMONTH_MAPPING[vMonth],
+                "Month"        : sMONTH_MAPPING[vMonth],
                 "Calendar Days": calendar.monthrange(vYear, vMonth)[1],
-                "Working Days" : vWd_Map.get((vYear, vMonth), ""),
+                "Working Days" : sWd_Map.get((vYear, vMonth), ""),
                 "Status"       : 1,
                 "Message"      : "Success",
-                "Date"         : vDate,
-                "Time"         : vTime
+                "Date"         : sDate,
+                "Time"         : sTime
             })
 
     try:
-        write_csv(vPath, vCSV_HEADERS, vRows)
+        write_csv(sPath, sCSV_HEADERS, vRows)
     except Exception as vError:
         vLog.error(f"[{vSync}] CSV error: {vError}")
         raise RuntimeError("Internal Server Error")
@@ -98,4 +101,4 @@ def process_data(vData):
     # =========================
     # MOVE FILE SETELAH TI SUKSES
     # =========================
-    move_processed_file(vPath)
+    move_processed_file(sPath)

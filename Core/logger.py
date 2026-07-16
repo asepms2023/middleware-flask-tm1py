@@ -14,8 +14,8 @@ from Core.settings import LOG_PATH
 if not LOG_PATH or LOG_PATH.strip() == "":
     raise EnvironmentError("LOG_PATH is not set in .env")
 
-vLog_Dir  = LOG_PATH.strip()
-vSeq_File = os.path.join(vLog_Dir, "log_seq.txt")
+sLog_Dir  = LOG_PATH.strip()
+sSeq_File = os.path.join(sLog_Dir, "log_seq.txt")
 
 _FLUSH_EVERY = 10
 
@@ -25,15 +25,15 @@ _FLUSH_EVERY = 10
 # =========================
 def _read_seq() -> int:
     try:
-        if os.path.exists(vSeq_File):
-            with open(vSeq_File, "r") as f:
-                vParts = f.read().strip().split("|")
-                if len(vParts) == 2:
-                    vDate_Saved = vParts[0].strip()
-                    vSeq_Saved  = int(vParts[1].strip())
-                    vToday      = datetime.now().strftime("%Y%m%d")
-                    if vDate_Saved == vToday:
-                        return vSeq_Saved
+        if os.path.exists(sSeq_File):
+            with open(sSeq_File, "r") as f:
+                sParts = f.read().strip().split("|")
+                if len(sParts) == 2:
+                    sDate_Saved = sParts[0].strip()
+                    nSeq_Saved  = int(sParts[1].strip())
+                    sToday      = datetime.now().strftime("%Y%m%d")
+                    if sDate_Saved == sToday:
+                        return nSeq_Saved
     except Exception:
         pass
     return 0
@@ -42,11 +42,11 @@ def _read_seq() -> int:
 # =========================
 # WRITE SEQUENCE TO FILE
 # =========================
-def _write_seq(vSeq: int):
+def _write_seq(nSeq: int):
     try:
-        vToday = datetime.now().strftime("%Y%m%d")
-        with open(vSeq_File, "w") as f:
-            f.write(f"{vToday}|{vSeq}")
+        sToday = datetime.now().strftime("%Y%m%d")
+        with open(sSeq_File, "w") as f:
+            f.write(f"{sToday}|{nSeq}")
     except Exception:
         pass
 
@@ -76,13 +76,11 @@ class SequenceFilter(logging.Filter):
         return True
 
     def flush(self):
-        """Flush paksa ke disk — dipanggil saat rotation, shutdown, atau reset."""
         with self._lock:
             _write_seq(self._seq)
             self._unflushed = 0
 
     def reset(self):
-        """Reset sequence ke 0 saat hari berganti."""
         with self._lock:
             self._seq       = 0
             self._unflushed = 0
@@ -101,9 +99,9 @@ _vStop_Rotation   : threading.Event  = threading.Event()
 # GET LOG PATH (DAILY)
 # =========================
 def get_log_path():
-    vNow       = datetime.now()
-    vFile_Name = f"app_{vNow.strftime('%Y%m%d')}.log"
-    return os.path.join(vLog_Dir, vFile_Name)
+    sNow       = datetime.now()
+    sFile_Name = f"app_{sNow.strftime('%Y%m%d')}.log"
+    return os.path.join(sLog_Dir, sFile_Name)
 
 
 # =========================
@@ -111,23 +109,23 @@ def get_log_path():
 # =========================
 def _cleanup_old_logs():
     try:
-        vNow    = datetime.now()
-        vCutoff = vNow.replace(day=1) - relativedelta(months=1)
+        sNow    = datetime.now()
+        sCutoff = sNow.replace(day=1) - relativedelta(months=1)
         vLogger = logging.getLogger("app")
 
-        for vFile in os.listdir(vLog_Dir):
-            if not vFile.startswith("app_") or not vFile.endswith(".log"):
+        for sFile in os.listdir(sLog_Dir):
+            if not sFile.startswith("app_") or not sFile.endswith(".log"):
                 continue
             try:
-                vDate_Part = vFile.replace("app_", "").replace(".log", "")
-                vFile_Date = datetime.strptime(vDate_Part, "%Y%m%d")
+                sDate_Part = sFile.replace("app_", "").replace(".log", "")
+                sFile_Date = datetime.strptime(sDate_Part, "%Y%m%d")
             except ValueError:
                 continue
 
-            if vFile_Date < vCutoff:
-                vFile_Path = os.path.join(vLog_Dir, vFile)
-                os.remove(vFile_Path)
-                vLogger.info(f"Old log deleted: {vFile}")
+            if sFile_Date < sCutoff:
+                sFile_Path = os.path.join(sLog_Dir, sFile)
+                os.remove(sFile_Path)
+                vLogger.info(f"Old log deleted: {sFile}")
 
     except Exception as vError:
         logging.getLogger("app").error(f"cleanup_old_logs error: {vError}")
@@ -136,7 +134,7 @@ def _cleanup_old_logs():
 # =========================
 # ATTACH FILE HANDLER
 # =========================
-def _attach_file_handler(vLogger: logging.Logger, vLog_Path: str, vReset_Seq: bool = False):
+def _attach_file_handler(vLogger: logging.Logger, sLog_Path: str, vReset_Seq: bool = False):
     global _vSeq_Filter
 
     vFormatter = logging.Formatter(
@@ -155,7 +153,7 @@ def _attach_file_handler(vLogger: logging.Logger, vLog_Path: str, vReset_Seq: bo
         else:
             _vSeq_Filter.flush()
 
-    vFile_Handler = logging.FileHandler(vLog_Path, encoding="utf-8")
+    vFile_Handler = logging.FileHandler(sLog_Path, encoding="utf-8")
     vFile_Handler.setFormatter(vFormatter)
     vLogger.addHandler(vFile_Handler)
 
@@ -165,7 +163,7 @@ def _attach_file_handler(vLogger: logging.Logger, vLog_Path: str, vReset_Seq: bo
 # =========================
 def _rotation_worker():
     vLogger       = logging.getLogger("app")
-    vCurrent_Path = get_log_path()
+    sCurrent_Path = get_log_path()
 
     while not _vStop_Rotation.is_set():
         _vStop_Rotation.wait(timeout=60)
@@ -173,11 +171,11 @@ def _rotation_worker():
         if _vStop_Rotation.is_set():
             break
 
-        vNew_Path = get_log_path()
-        if os.path.abspath(vNew_Path) != os.path.abspath(vCurrent_Path):
-            _attach_file_handler(vLogger, vNew_Path, vReset_Seq=True)
-            vCurrent_Path = vNew_Path
-            vLogger.info(f"New log file created: {os.path.basename(vNew_Path)}")
+        sNew_Path = get_log_path()
+        if os.path.abspath(sNew_Path) != os.path.abspath(sCurrent_Path):
+            _attach_file_handler(vLogger, sNew_Path, vReset_Seq=True)
+            sCurrent_Path = sNew_Path
+            vLogger.info(f"New log file created: {os.path.basename(sNew_Path)}")
             _cleanup_old_logs()
 
 
@@ -187,7 +185,7 @@ def _rotation_worker():
 def setup_logger():
     global _vSeq_Filter, _vRotation_Thread, _vStop_Rotation
 
-    os.makedirs(vLog_Dir, exist_ok=True)
+    os.makedirs(sLog_Dir, exist_ok=True)
 
     vLogger = logging.getLogger("app")
     vLogger.propagate = False
@@ -195,12 +193,12 @@ def setup_logger():
     if not vLogger.handlers:
         vLogger.setLevel(logging.INFO)
 
-        vToday = datetime.now().strftime("%Y%m%d")
+        sToday = datetime.now().strftime("%Y%m%d")
         try:
-            if os.path.exists(vSeq_File):
-                with open(vSeq_File, "r") as f:
-                    vParts = f.read().strip().split("|")
-                    if len(vParts) == 2 and vParts[0].strip() != vToday:
+            if os.path.exists(sSeq_File):
+                with open(sSeq_File, "r") as f:
+                    sParts = f.read().strip().split("|")
+                    if len(sParts) == 2 and sParts[0].strip() != sToday:
                         _write_seq(0)
         except Exception:
             pass
@@ -208,8 +206,8 @@ def setup_logger():
         _vSeq_Filter = SequenceFilter()
         vLogger.addFilter(_vSeq_Filter)
 
-        vLog_Path = get_log_path()
-        _attach_file_handler(vLogger, vLog_Path, vReset_Seq=False)
+        sLog_Path = get_log_path()
+        _attach_file_handler(vLogger, sLog_Path, vReset_Seq=False)
 
     if _vRotation_Thread is None or not _vRotation_Thread.is_alive():
         _vStop_Rotation.clear()

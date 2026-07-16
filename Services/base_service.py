@@ -26,30 +26,28 @@ if not MASTERDATA_PATH or MASTERDATA_PATH.strip() == "":
 # CUBE REFERENCE
 # =========================
 # Cube    : 00-ControlPanelAPI
-vCONTROL_PANEL_CUBE       = "00-ControlPanelAPI"
-vCONTROL_PANEL_ITEM_DIM   = "ControlPanelAPIItem"
-vCONTROL_PANEL_MEASURE_DIM = "MeasureControlPanel"
+sCONTROL_PANEL_CUBE       = "00-ControlPanelAPI"
+sCONTROL_PANEL_ITEM_DIM   = "ControlPanelAPIItem"
+sCONTROL_PANEL_MEASURE_DIM = "MeasureControlPanel"
 
-# Element path
-vPATH_ELEMENTS = {
+# Elemen path (measure String) -> key hasil & fallback .env masing-masing
+sPATH_ELEMENTS = {
     "DataFolderLocation"       : BASE_PATH,
     "SourceFileLocation"       : MASTERDATA_PATH,
     "SourceFileBackupLocation" : MOVED_MASTERDATA_PATH,
     "SourceFileLogsLocation"   : LOG_PATH,
 }
 
-# Element numeric
-# kalau kosong/0/invalid berarti "jangan pakai cache" (selalu fetch ulang ke cube)
-vCACHE_ELEMENT = "CacheDuration(Seconds)"
+sCACHE_ELEMENT = "CacheDuration(Seconds)"
 
-vDefault_Path = MASTERDATA_PATH.strip()
+sDefault_Path = MASTERDATA_PATH.strip()
 
 # =========================
 # GLOBAL CACHE
 # =========================
 vControl_Panel_Cache  = None
-vCache_Fetched_At     = 0
-vCache_Duration       = 0
+nCache_Fetched_At     = 0
+nCache_Duration       = 0
 vCache_Lock           = threading.Lock()
 
 vLog = get_logger()
@@ -71,77 +69,77 @@ def _to_int_safe(vValue) -> int:
 # FETCH CONTROL PANEL CUBE
 # =========================
 def _fetch_from_cube():
-    vResult = {vKey: vFallback for vKey, vFallback in vPATH_ELEMENTS.items()}
-    vResult[vCACHE_ELEMENT] = 0
+    vResult = {sKey: sFallback for sKey, sFallback in sPATH_ELEMENTS.items()}
+    vResult[sCACHE_ELEMENT] = 0
 
     with get_tm1() as tm1:
         vDf = tm1.cubes.cells.execute_mdx_dataframe(f"""
             SELECT
-                {{[{vCONTROL_PANEL_MEASURE_DIM}].[String],
-                  [{vCONTROL_PANEL_MEASURE_DIM}].[Numeric]}} ON COLUMNS,
-                {{[{vCONTROL_PANEL_ITEM_DIM}].Members}} ON ROWS
-            FROM [{vCONTROL_PANEL_CUBE}]
+                {{[{sCONTROL_PANEL_MEASURE_DIM}].[String],
+                  [{sCONTROL_PANEL_MEASURE_DIM}].[Numeric]}} ON COLUMNS,
+                {{[{sCONTROL_PANEL_ITEM_DIM}].Members}} ON ROWS
+            FROM [{sCONTROL_PANEL_CUBE}]
         """)
 
-    vFound_Path_Keys = set()
+    sFound_Path_Keys = set()
 
     if vDf.empty:
         vLog.warning("Cube 00-ControlPanelAPI returned empty result, using .env fallback for all paths.")
-        return vResult, vFound_Path_Keys
+        return vResult, sFound_Path_Keys
 
     for _, vRow in vDf.iterrows():
-        vItem_Name = str(vRow["ControlPanelAPIItem"]).strip()
-        vMeasure   = str(vRow["MeasureControlPanel"]).strip()
+        sItem_Name = str(vRow["ControlPanelAPIItem"]).strip()
+        sMeasure   = str(vRow["MeasureControlPanel"]).strip()
         vValue     = vRow["Value"]
 
-        if vItem_Name in vPATH_ELEMENTS and vMeasure == "String":
+        if sItem_Name in sPATH_ELEMENTS and sMeasure == "String":
             if vValue is not None and str(vValue).strip() not in ("", "nan", "None"):
-                vResult[vItem_Name] = str(vValue).strip()
-                vFound_Path_Keys.add(vItem_Name)
+                vResult[sItem_Name] = str(vValue).strip()
+                sFound_Path_Keys.add(sItem_Name)
 
-        elif vItem_Name == vCACHE_ELEMENT and vMeasure == "Numeric":
-            vResult[vCACHE_ELEMENT] = _to_int_safe(vValue)
+        elif sItem_Name == sCACHE_ELEMENT and sMeasure == "Numeric":
+            vResult[sCACHE_ELEMENT] = _to_int_safe(vValue)
 
-    for vKey in vPATH_ELEMENTS:
-        if vKey not in vFound_Path_Keys:
-            vLog.warning(f"Element '{vKey}' value null, using .env: {vResult[vKey]}")
+    for sKey in sPATH_ELEMENTS:
+        if sKey not in sFound_Path_Keys:
+            vLog.warning(f"Element '{sKey}' value null, using .env: {vResult[sKey]}")
 
-    return vResult, vFound_Path_Keys
+    return vResult, sFound_Path_Keys
 
 
 # =========================
 # GET CONTROL PANEL DATA (CACHED)
 # =========================
 def get_control_panel_data() -> dict:
-    global vControl_Panel_Cache, vCache_Fetched_At, vCache_Duration
+    global vControl_Panel_Cache, nCache_Fetched_At, nCache_Duration
 
-    vNow = time.time()
+    nNow = time.time()
 
     with vCache_Lock:
         vCache_Masih_Berlaku = (
             vControl_Panel_Cache is not None
-            and vCache_Duration != 0
-            and (vNow - vCache_Fetched_At) < vCache_Duration
+            and nCache_Duration != 0
+            and (nNow - nCache_Fetched_At) < nCache_Duration
         )
         if vCache_Masih_Berlaku:
             return vControl_Panel_Cache
 
         try:
-            vData, vFound_Path_Keys = _fetch_from_cube()
-            vNew_Duration    = vData.get(vCACHE_ELEMENT, 0)
-            vAll_Paths_Found = vFound_Path_Keys == set(vPATH_ELEMENTS.keys())
+            vData, sFound_Path_Keys = _fetch_from_cube()
+            nNew_Duration    = vData.get(sCACHE_ELEMENT, 0)
+            vAll_Paths_Found = sFound_Path_Keys == set(sPATH_ELEMENTS.keys())
 
-            if vNew_Duration != 0 and vAll_Paths_Found:
+            if nNew_Duration != 0 and vAll_Paths_Found:
                 vControl_Panel_Cache = vData
-                vCache_Fetched_At    = vNow
-                vCache_Duration      = vNew_Duration
-                vLog.info(f"CacheDuration(Seconds) value {vNew_Duration}. cache activated.")
+                nCache_Fetched_At    = nNow
+                nCache_Duration      = nNew_Duration
+                vLog.info(f"CacheDuration(Seconds) value {nNew_Duration}. cache activated.")
             else:
                 vControl_Panel_Cache = None
-                vCache_Fetched_At    = 0
-                vCache_Duration      = 0
+                nCache_Fetched_At    = 0
+                nCache_Duration      = 0
 
-                if vNew_Duration != 0 and not vAll_Paths_Found:
+                if nNew_Duration != 0 and not vAll_Paths_Found:
                     vLog.warning(
                         "One or more path elements missing in cube, cache skipped "
                         "even though CacheDuration is valid."
@@ -159,8 +157,8 @@ def get_control_panel_data() -> dict:
                 return vControl_Panel_Cache
 
             vLog.warning("Cube unreachable and no cache available, using full .env fallback.")
-            vFallback = {vKey: vVal for vKey, vVal in vPATH_ELEMENTS.items()}
-            vFallback[vCACHE_ELEMENT] = 0
+            vFallback = {sKey: sVal for sKey, sVal in sPATH_ELEMENTS.items()}
+            vFallback[sCACHE_ELEMENT] = 0
             return vFallback
 
 
@@ -169,7 +167,7 @@ def get_control_panel_data() -> dict:
 # =========================
 def get_source_file_location() -> str:
     """Folder tempat CSV ditulis pertama kali, sebelum TI dijalankan."""
-    return get_control_panel_data().get("SourceFileLocation", vDefault_Path)
+    return get_control_panel_data().get("SourceFileLocation", sDefault_Path)
 
 
 def get_source_file_backup_location() -> str:
@@ -186,53 +184,78 @@ def get_source_file_logs_location() -> str:
 
 
 # =========================
-# RUN TI PROCESS
+# GET FILE NAME (BERDASARKAN SYNCCODE ATTRIBUTE)
 # =========================
-def run_ti_process(vProcess_Name):
+def get_file_name(sSync_Code: str, sDefault_Name: str) -> str:
     try:
         with get_tm1() as tm1:
-            vSuccess, vStatus, vError_Log = tm1.processes.execute_with_return(vProcess_Name)
+            vDf = tm1.cubes.cells.execute_mdx_dataframe("""
+                SELECT
+                    NON EMPTY {[}ElementAttributes_SyncCode].[FileNamePrefix]} ON COLUMNS,
+                    {[SyncCode].[SyncCode].Members} ON ROWS
+                FROM [}ElementAttributes_SyncCode]
+            """)
+    except Exception as vError:
+        vLog.warning(f"Failed to fetch FileNamePrefix for '{sSync_Code}': {vError}. Using default file name.")
+        return sDefault_Name
+
+    for _, vRow in vDf.iterrows():
+        if str(vRow["SyncCode"]).strip() == sSync_Code:
+            sPrefix = str(vRow["Value"]).strip()
+            if sPrefix and sPrefix.lower() not in ("nan", "none"):
+                return f"{sPrefix}.csv"
+
+    return sDefault_Name
+
+
+# =========================
+# RUN TI PROCESS
+# =========================
+def run_ti_process(sProcess_Name):
+    try:
+        with get_tm1() as tm1:
+            vSuccess, sStatus, sError_Log = tm1.processes.execute_with_return(sProcess_Name)
 
             if not vSuccess:
-                vLog.error(f"TI process failed '{vProcess_Name}' | Status: {vStatus} | Log: {vError_Log}")
+                vLog.error(f"TI process failed '{sProcess_Name}' | Status: {sStatus} | Log: {sError_Log}")
                 raise RuntimeError("TI Process Failed")
 
-            vLog.info(f"TI process success '{vProcess_Name}' | Status: {vStatus}")
+            vLog.info(f"TI process success '{sProcess_Name}' | Status: {sStatus}")
 
     except RuntimeError:
         raise
     except Exception as vError:
-        vLog.error(f"TI process error '{vProcess_Name}': {vError}")
+        vLog.error(f"TI process error '{sProcess_Name}': {vError}")
         raise RuntimeError("TI Process Failed")
 
 
 # =========================
 # MOVE PROCESSED FILE
 # =========================
-def move_processed_file(vSource_Path: str) -> bool:
-    if not os.path.exists(vSource_Path):
-        vLog.error(f"Move file failed: source file not found: {vSource_Path}")
+def move_processed_file(sSource_Path: str) -> bool:
+    if not os.path.exists(sSource_Path):
+        vLog.error(f"Move file failed: source file not found: {sSource_Path}")
         return False
 
-    vBackup_Dir = get_source_file_backup_location()
+    sBackup_Dir = get_source_file_backup_location()
 
     try:
-        os.makedirs(vBackup_Dir, exist_ok=True)
+        os.makedirs(sBackup_Dir, exist_ok=True)
 
-        vFile_Name         = os.path.basename(vSource_Path)
-        vName, vExt        = os.path.splitext(vFile_Name)
-        vTimestamp         = datetime.now().strftime("%Y%m%d_%H%M%S")
-        vDest_File_Name    = f"{vName}_{vTimestamp}{vExt}"
-        vDest_Path         = os.path.join(vBackup_Dir, vDest_File_Name)
+        sFile_Name         = os.path.basename(sSource_Path)
+        sName, sExt        = os.path.splitext(sFile_Name)
+        sTimestamp         = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sDest_File_Name    = f"{sName}_{sTimestamp}{sExt}"
+        sDest_Path         = os.path.join(sBackup_Dir, sDest_File_Name)
 
-        shutil.move(vSource_Path, vDest_Path)
-        vLog.info(f"File moved: {vSource_Path} -> {vDest_Path}")
+        shutil.move(sSource_Path, sDest_Path)
+        vLog.info(f"File moved: {sSource_Path} -> {sDest_Path}")
         return True
 
     except Exception as vError:
         vLog.error(
-            f"Failed to move file '{vSource_Path}' to backup folder "
-            f"'{vBackup_Dir}': {vError}. Old file will be overwritten on next run."
+            f"Failed to move file '{sSource_Path}' to backup folder "
+            f"'{sBackup_Dir}': {vError}. Old file will be overwritten on next run."
         )
         return False
 
@@ -240,35 +263,35 @@ def move_processed_file(vSource_Path: str) -> bool:
 # =========================
 # WRITE CSV
 # =========================
-def write_csv(vPath, vHeaders, vRows):
-    os.makedirs(os.path.dirname(vPath), exist_ok=True)
+def write_csv(sPath, sHeaders, vRows):
+    os.makedirs(os.path.dirname(sPath), exist_ok=True)
 
     try:
-        with open(vPath, "w", newline="", encoding="utf-8") as vFile:
-            vWriter = csv.DictWriter(vFile, fieldnames=vHeaders)
+        with open(sPath, "w", newline="", encoding="utf-8") as vFile:
+            vWriter = csv.DictWriter(vFile, fieldnames=sHeaders)
             vWriter.writeheader()
             vWriter.writerows(vRows)
 
-        vLog.info(f"CSV written successfully: {vPath} | Rows: {len(vRows)}")
+        vLog.info(f"CSV written successfully: {sPath} | Rows: {len(vRows)}")
 
     except PermissionError:
-        vLog.error(f"CSV write failed: file is currently open or locked: {vPath}")
+        vLog.error(f"CSV write failed: file is currently open or locked: {sPath}")
         raise
 
     except Exception as vError:
-        vLog.error(f"CSV write failed: {vPath} | Error: {vError}")
+        vLog.error(f"CSV write failed: {sPath} | Error: {vError}")
         raise
 
 
 # =========================
 # BUILD ERROR ROW
 # =========================
-def build_error_row(vSync, vMessage, vTemplate):
-    vNow = datetime.now()
-    vRow = {k: "" for k in vTemplate}
+def build_error_row(vSync, sMessage, sTemplate):
+    sNow = datetime.now()
+    vRow = {k: "" for k in sTemplate}
     vRow["SyncCode"] = vSync or ""
     vRow["Status"]   = 0
-    vRow["Message"]  = vMessage
-    vRow["Date"]     = vNow.strftime("%Y-%m-%d")
-    vRow["Time"]     = vNow.strftime("%H:%M:%S")
+    vRow["Message"]  = sMessage
+    vRow["Date"]     = sNow.strftime("%Y-%m-%d")
+    vRow["Time"]     = sNow.strftime("%H:%M:%S")
     return [vRow]
