@@ -17,7 +17,7 @@ sEnv_Path   = os.path.join(sScript_Dir, ".env")
 load_dotenv(sEnv_Path)
 
 # =========================
-# APP DIRECTORY (LOKASI run_py.py / app.py SENDIRI)
+# APP DIRECTORY
 # =========================
 sApp_Dir = sScript_Dir
 

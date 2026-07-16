@@ -95,7 +95,7 @@ def make_handler(vModule, vFunction, vAuth_Cfg, vExpected_Sync):
 def register(vApp, vCfg):
     for vRoute in vCfg["routes"]:
         if not vRoute.get("active", True):
-            vLog.info(f"Route skipped (inactive): {vRoute['endpoint']} → {vRoute['service']}")
+            vLog.info(f"Route skipped (inactive): {vRoute['endpoint']}")
             continue
 
         try:
@@ -118,4 +118,4 @@ def register(vApp, vCfg):
             vHandler,
             methods=["POST"]
         )
-        vLog.info(f"Route registered: {vRoute['endpoint']} → {vRoute['service']}")
+        vLog.info(f"Route registered: {vRoute['endpoint']}")

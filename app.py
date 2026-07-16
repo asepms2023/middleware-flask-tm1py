@@ -10,7 +10,6 @@ from flask import Flask, request, jsonify
 from Core.settings import BASE_PATH, LOG_PATH, MASTERDATA_PATH, SECRET_KEY, AUTH_USERNAME, AUTH_PASSWORD, CLIENT_SECRET
 from Core.logger import setup_logger, stop_logger
 from Core.auth import generate_token, validate_request
-from Core.response import res_error
 from Core.router import register
 
 # =========================
@@ -89,6 +88,8 @@ except (FileNotFoundError, ValueError) as vError:
 
 # =========================
 # SIGNAL HANDLER (GRACEFUL SHUTDOWN)
+# SIGBREAK hanya tersedia di Windows - dicek dengan hasattr
+# agar tidak error saat dijalankan di Linux atau macOS.
 # =========================
 def handle_shutdown(signum, frame):
     vLog.info("Server shutting down...")
@@ -107,13 +108,20 @@ if hasattr(signal, "SIGBREAK"):
 @app.route("/auth/token", methods=["POST"])
 def auth_token():
     if "application/x-www-form-urlencoded" not in request.content_type:
-        return res_error("Content-Type must be application/x-www-form-urlencoded", 400)
+        return jsonify({
+            "error": "invalid_request",
+            "error_description": "Content-Type must be application/x-www-form-urlencoded"
+        }), 400
 
-    vForm = request.form
-    vErr  = validate_request(vForm, vCfg["auth"])
-    if vErr:
-        vLog.warning(f"auth/token | Unauthorized | {vErr}")
-        return res_error(vErr, 401)
+    vForm       = request.form
+    vErr_Result = validate_request(vForm, vCfg["auth"])
+    if vErr_Result:
+        sError_Code, sError_Description = vErr_Result
+        vLog.warning(f"auth/token | Unauthorized | {sError_Code}: {sError_Description}")
+        return jsonify({
+            "error": sError_Code,
+            "error_description": sError_Description
+        }), 401
 
     vToken_Data = generate_token(vCfg["auth"])
     vLog.info(f"auth/token | Token generated for client: {vForm.get('client_id')}")

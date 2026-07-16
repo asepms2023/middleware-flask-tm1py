@@ -136,18 +136,22 @@ def validate_request(vForm: dict, vAuth_Cfg: dict):
     vClient_Id     = vForm.get("client_id", "")
     vClient_Secret = vForm.get("client_secret", "")
 
+    # Return (None) kalau valid, atau tuple (sError_Code, sError_Description)
+    # mengikuti kode error standar OAuth2 (RFC 6749 5.2) sesuai jenis
+    # kegagalannya masing-masing -- bukan satu kode generik untuk semua.
+
     # Validasi grant_type
     if vGrant_Type != vAuth_Cfg["grant_type"]:
         return (
-            f"grant_type must be "
-            f"'{vAuth_Cfg['grant_type']}'"
+            "unsupported_grant_type",
+            f"grant_type must be '{vAuth_Cfg['grant_type']}'"
         )
 
     # Validasi scope
     if vScope != vAuth_Cfg["scope"]:
         return (
-            f"scope must be "
-            f"'{vAuth_Cfg['scope']}'"
+            "invalid_scope",
+            f"scope must be '{vAuth_Cfg['scope']}'"
         )
 
     # Validasi username
@@ -155,28 +159,28 @@ def validate_request(vForm: dict, vAuth_Cfg: dict):
         vUsername,
         vAuth_Cfg["username"]
     ):
-        return "Invalid username or password"
+        return ("invalid_grant", "invalid_username_or_password")
 
     # Validasi password
     if not _safe_compare(
         vPassword,
         vAuth_Cfg["password"]
     ):
-        return "Invalid username or password"
+        return ("invalid_grant", "invalid_username_or_password")
 
     # Validasi client_id
     if not _safe_compare(
         vClient_Id,
         vAuth_Cfg["client_id"]
     ):
-        return "Invalid client_id or client_secret"
+        return ("invalid_client", "invalid_client_id_or_secret")
 
     # Validasi client_secret
     if not _safe_compare(
         vClient_Secret,
         vAuth_Cfg["client_secret"]
     ):
-        return "Invalid client_id or client_secret"
+        return ("invalid_client", "invalid_client_id_or_secret")
 
     # Semua valid
     return None
