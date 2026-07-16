@@ -57,19 +57,24 @@ tm1py/
 ## Hal-hal penting yang perlu diinget
 
 - **Path folder (CSV, backup, log) dan nama file CSV itu dinamis** — diambil dari cube TM1 (`00-ControlPanelAPI` buat path, attribute `FileNamePrefix` di dimensi `SyncCode` buat nama file). Kalau di cube kosong, otomatis fallback ke default (`.env` untuk path, nama hardcode untuk file).
-- **Cache aktif cuma kalau `CacheDuration(Seconds)` di cube ≠ 0 DAN semua path ketemu di cube.** Kalau salah satu kosong, sistem selalu fetch ulang ke cube tiap request — gak pernah cache setengah-setengah.
+- **Cache aktif cuma kalau `CacheDuration(Seconds)` di cube ≠ 0 DAN semua path ketemu di cube.** Kalau salah satu kosong, sistem selalu fetch ulang ke cube tiap request, gak pernah cache setengah-setengah.
 - **Nama TI process harus PERSIS sama** dengan yang ada di TM1 (`LoadData-Dealer`, `LoadData-01-MappingCatalogue`, `LoadData-01-MappingDealerPolreg`, `LoadData-01-Workdays`). Salah satu huruf aja beda, TI-nya gak ketemu.
 - **Kalau move file ke folder backup gagal** (misal permission error), itu cuma di-log ERROR, gak bikin proses gagal, soalnya TI nya udah sukses duluan. Tapi konsekuensinya, file lama bakal ketimpa run berikutnya kalau emang gak pernah kepindah.
 - **Cross-platform**: kill-process pas start pakai `psutil`, jalan di Windows maupun Linux tanpa perlu ubah kode.
 
 
 
-#Author
-Mohamad Asep Shayfullah
-GitHub: https://github.com/asepms2023
-Website: https://asepms20.my.id/
 
+---
 
-#License
+## 👤 Author
 
-This project is provided for internal and educational use.
+**Mohamad Asep Shayfullah**
+
+🔗 [GitHub](https://github.com/asepms2023) · 🌐 [Website](https://asepms20.my.id/)
+
+---
+
+## 📄 License
+
+Project ini disediakan untuk keperluan **internal** dan **edukasi** (*provided for internal and educational use*).
